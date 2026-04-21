@@ -1,65 +1,95 @@
-import Image from "next/image";
+"use client"
+
+import { useState } from "react"
+import { Sidebar } from "@/components/sidebar"
+import { Header } from "@/components/header"
+import { DashboardPage } from "@/components/dashboard-page"
+import { AccountsPage } from "@/components/accounts-page"
+import dynamic from "next/dynamic"
+const InvoicesPage = dynamic(() => import('@/components/invoices-page').then(mod => mod.InvoicesPage), { ssr: false })
+import { SettingsPage } from "@/components/settings-page"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Menu } from "lucide-react"
+import { Button } from "@/components/ui/button"
+
+const pageConfig = {
+  dashboard: {
+    title: "Dashboard",
+    subtitle: "Overview of Parasnath Jeans",
+    component: DashboardPage,
+  },
+  accounts: {
+    title: "Accounts & CRM",
+    subtitle: "Manage your Direct Agents and Agency customers",
+    component: AccountsPage,
+  },
+  invoices: {
+    title: "Invoices",
+    subtitle: "Create and manage your invoices",
+    component: InvoicesPage,
+  },
+  settings: {
+    title: "Settings",
+    subtitle: "Configure your preferences",
+    component: SettingsPage,
+  },
+}
+
+import { useStore } from "@/lib/store"
 
 export default function Home() {
+  const { organization } = useStore()
+  const [activeTab, setActiveTab] = useState<keyof typeof pageConfig>("dashboard")
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const currentPage = pageConfig[activeTab]
+  const PageComponent = currentPage.component
+  const dynamicSubtitle = currentPage.subtitle === "Overview of Parasnath Jeans" ? `Overview of ${organization}` : currentPage.subtitle
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block">
+        <Sidebar activeTab={activeTab} onTabChange={(tab) => setActiveTab(tab as keyof typeof pageConfig)} />
+      </div>
+
+      {/* Mobile Sidebar */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
+          <Sidebar
+            activeTab={activeTab}
+            onTabChange={(tab) => {
+              setActiveTab(tab as keyof typeof pageConfig)
+              setMobileMenuOpen(false)
+            }}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header
+          title={currentPage.title}
+          subtitle={dynamicSubtitle}
+          onMenuClick={() => setMobileMenuOpen(true)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Mobile Menu Button - Only visible on mobile */}
+        <div className="md:hidden fixed bottom-6 right-6 z-50">
+          <Button
+            size="icon"
+            className="w-14 h-14 rounded-full bg-primary shadow-lg shadow-primary/30"
+            onClick={() => setMobileMenuOpen(true)}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <Menu className="w-6 h-6" />
+          </Button>
         </div>
-      </main>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto">
+          <PageComponent />
+        </main>
+      </div>
     </div>
-  );
+  )
 }

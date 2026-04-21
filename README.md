@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Prasan ERP
 
-## Getting Started
+A professional business suite for jeans manufacturing — accounting, invoicing, CRM, and ledger management.
 
-First, run the development server:
+## Features
+
+- 🏢 **Multi-Company** — Manage unlimited business entities with isolated data
+- 📊 **Dashboard** — Real-time revenue, accounts, and invoice analytics
+- 🧾 **Invoicing** — Create, track, and export invoices with aging indicators
+- 📒 **Ledger Management** — Full double-entry ledger with PDF export
+- 🔒 **Password Protected** — SHA-256 hashed master password
+- 🗄️ **SQLite Database** — Permanent local storage via Prisma ORM
+
+## Quick Start
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org) v18 or later
+
+### Option A: Double-Click Launch
+
+- **macOS**: Double-click `start-mac.command`
+- **Windows**: Double-click `start-windows.bat`
+
+### Option B: Manual
 
 ```bash
+npm install
+npx prisma generate
+npx prisma db push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## First Launch
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+On first launch, a **Setup Wizard** will guide you through:
 
-## Learn More
+1. Setting your **Company Name**
+2. Creating a **Master Password**
 
-To learn more about Next.js, take a look at the following resources:
+After setup, use the password to log in on subsequent visits.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Framework**: Next.js 16 (Turbopack)
+- **Database**: SQLite via Prisma ORM
+- **Auth**: Client-side SHA-256 password hashing
+- **UI**: shadcn/ui + Tailwind CSS
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+├── prisma/schema.prisma    # Database schema
+├── src/app/actions.ts      # Server Actions (CRUD)
+├── src/lib/auth.tsx        # Auth + Setup Wizard
+├── src/lib/store.tsx       # Global state (SQLite-backed)
+├── src/lib/prisma.ts       # Database connection singleton
+├── src/components/         # UI components
+├── start-mac.command       # macOS launcher
+├── start-windows.bat       # Windows launcher
+└── dev.db                  # SQLite database (auto-created)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+Private — All rights reserved.

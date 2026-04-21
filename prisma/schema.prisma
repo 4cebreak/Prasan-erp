@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  gstNumber String?
+  panNumber String?
+  address   String?
+  city      String?
+  state     String?
+  
+  accounts  Account[]
+  invoices  Invoice[]
+}
+
+model Account {
+  id        String         @id @default(cuid())
+  name      String
+  type      String         // "Direct Agent" | "Agency"
+  station   String?
+  balance   Float          @default(0)
+  
+  orgId     String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  
+  ledger    LedgerEntry[]
+}
+
+model LedgerEntry {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+  party       String?
+  station     String?
+  amount      Float    @default(0)
+  discount    Float    @default(0)
+  taxOrPaid   Float    @default(0)
+  netAmount   Float    @default(0)
+  items       String?
+  payment     Float    @default(0)
+  type        String   // "bill" | "payment"
+  paymentMode String?
+  
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id           String    @id @default(cuid())
+  invoiceNo    String
+  date         DateTime  @default(now())
+  customerName String
+  agencyName   String?
+  city         String?
+  transport    String?
+  remarks      String?
+  marka        String?
+  subtotal     Float     @default(0)
+  discount     Float     @default(0)
+  taxes        Float     @default(0)
+  grandTotal   Float     @default(0)
+  status       String    @default("pending") // "paid" | "pending" | "overdue"
+  
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  
+  items        ItemRow[]
+}
+
+model ItemRow {
+  id        String   @id @default(cuid())
+  sno       Int
+  style     String?
+  brandName String?
+  size      String?
+  qty       Int      @default(0)
+  rate      Float    @default(0)
+  amount    Float    @default(0)
+  
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
