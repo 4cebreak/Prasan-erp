@@ -27,13 +27,13 @@ for /f "tokens=*" %%v in ('node -v') do echo [OK] Node.js found: %%v
 :: 1. Auto-create .env if missing
 if not exist ".env" (
     echo [INFO] Creating .env configuration file...
-    echo DATABASE_URL="file:./dev.db" > .env
+    echo DATABASE_URL="file:./dev.db">.env
 )
 
 :: 2. Check for node_modules platform mismatch
 if exist "node_modules" (
     if not exist "node_modules\.bin\next.cmd" (
-        echo [WARN] node_modules folder appears to be from a different OS (e.g. Mac).
+        echo [WARN] node_modules folder appears to be from a different OS [e.g. Mac].
         echo [INFO] Re-installing dependencies for Windows...
         rmdir /s /q node_modules
     )
@@ -41,7 +41,7 @@ if exist "node_modules" (
 
 :: 3. Install dependencies
 if not exist "node_modules" (
-    echo [INFO] Installing dependencies (first time only)...
+    echo [INFO] Installing dependencies [first time only]...
     echo        This may take a few minutes.
     call npm install
     if %errorlevel% neq 0 (
@@ -65,7 +65,7 @@ if not exist "dev.db" (
         exit /b 1
     )
 ) else (
-    :: Run generate anyway to ensure client is up to date
+    rem Run generate anyway to ensure client is up to date
     call npx prisma generate >nul 2>nul
 )
 
