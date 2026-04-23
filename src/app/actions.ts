@@ -232,13 +232,55 @@ export async function serverAddLedgerEntry(accountId: string, entryPayload: any)
   }
 }
 
-export async function serverAddOrganization(name: string, newId: string) {
+export async function serverListOrganizations() {
+  return await prisma.organization.findMany({
+    select: { id: true, name: true }
+  })
+}
+
+export async function serverDeleteOrganization(id: string) {
+  await prisma.organization.delete({ where: { id } })
+}
+
+export async function serverAddOrganization(name: string, newId: string, masterPasswordHash?: string) {
   return await prisma.organization.create({
     data: {
       id: newId,
-      name
+      name,
+      masterPasswordHash
     }
   })
+}
+
+export async function serverGetMasterPasswordHash(orgId?: string) {
+  if (orgId) {
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { masterPasswordHash: true }
+    })
+    return org?.masterPasswordHash || null
+  }
+  const org = await prisma.organization.findFirst({
+    select: { masterPasswordHash: true }
+  })
+  return org?.masterPasswordHash || null
+}
+
+export async function serverSetMasterPasswordHash(hash: string, orgId?: string) {
+  if (orgId) {
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { masterPasswordHash: hash }
+    })
+    return
+  }
+  const org = await prisma.organization.findFirst()
+  if (org) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { masterPasswordHash: hash }
+    })
+  }
 }
 
 export async function serverUpdateOrganization(id: string, updates: any) {

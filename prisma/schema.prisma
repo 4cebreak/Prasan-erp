@@ -7,8 +7,9 @@ datasource db {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
+  id                 String   @id @default(cuid())
+  name               String
+  masterPasswordHash String?
   gstNumber String?
   panNumber String?
   address   String?

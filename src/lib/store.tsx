@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { 
   fetchStoreContext, serverAddAccount, serverUpdateAccount, serverDeleteAccount, 
   serverAddLedgerEntry, serverAddInvoice, serverUpdateInvoice, serverDeleteInvoice, 
-  serverAddOrganization, serverUpdateOrganization 
+  serverAddOrganization, serverUpdateOrganization, serverDeleteOrganization 
 } from "@/app/actions"
 
 export interface LedgerEntry {
@@ -86,6 +86,7 @@ interface StoreState {
   activeOrg: OrgConfig
   addOrganization: (name: string) => void
   updateOrganization: (id: string, updates: Partial<OrgConfig>) => void
+  deleteOrganization: (id: string) => void
   organization: string
   setOrganization: (id: string) => void
 }
@@ -123,7 +124,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     fetchStoreContext(activeOrgId).then((res) => {
       // Prisma returns Date objects, we safely serialize them to maintain exact client types.
-      setOrganizations(res.organizations)
+      setOrganizations(res.organizations.map((o: any) => ({
+        ...o,
+        gstNumber: o.gstNumber || undefined,
+        panNumber: o.panNumber || undefined,
+        address: o.address || undefined,
+        city: o.city || undefined,
+        state: o.state || undefined,
+      })))
       
       const serializedAccounts = res.accounts.map((acc: any) => ({
         ...acc,
@@ -165,6 +173,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updateOrganization = async (id: string, updates: Partial<OrgConfig>) => {
     setOrganizations(prev => prev.map(o => (o.id === id ? { ...o, ...updates } : o)))
     await serverUpdateOrganization(id, updates)
+  }
+
+  const deleteOrganization = async (id: string) => {
+    const remaining = organizations.filter(o => o.id !== id)
+    setOrganizations(remaining)
+    if (activeOrgId === id) {
+      const nextOrg = remaining[0]?.id || "parasnath"
+      setActiveOrgId(nextOrg)
+    }
+    await serverDeleteOrganization(id)
   }
 
   const addAccount = async (acc: Omit<Account, "id" | "balance" | "ledger">) => {
@@ -244,8 +262,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider value={{ 
       accounts, invoices, addAccount, updateAccount, deleteAccount, addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, addInvoice, updateInvoice, deleteInvoice, 
-      organizations, activeOrgId, activeOrg, addOrganization, updateOrganization,
-      organization: organizationName, setOrganization: setActiveOrgId 
+    organizations, activeOrgId, activeOrg, addOrganization, updateOrganization, deleteOrganization,
+    organization: organizationName, setOrganization: setActiveOrgId 
     }}>
       {children}
     </StoreContext.Provider>

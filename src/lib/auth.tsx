@@ -3,8 +3,17 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Lock, Eye, EyeOff, ShieldCheck, Building2, KeyRound } from "lucide-react"
-import { checkFreshInstall, serverAddOrganization } from "@/app/actions"
+import { Lock, Eye, EyeOff, ShieldCheck, Building2, KeyRound, Plus } from "lucide-react"
+import { checkFreshInstall, serverAddOrganization, serverGetMasterPasswordHash, serverSetMasterPasswordHash, serverListOrganizations } from "@/app/actions"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -14,12 +23,103 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
+  // Check for secure context (crypto.subtle)
+  if (typeof crypto !== "undefined" && crypto.subtle) {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(password)
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
+  }
+
+  // Fallback for insecure contexts (e.g. accessing via IP on mobile over HTTP)
+  return sha256Fallback(password)
 }
+
+/**
+ * A lightweight SHA-256 implementation as a fallback for insecure contexts
+ * where crypto.subtle is unavailable.
+ */
+function sha256Fallback(ascii: string): string {
+  function rightRotate(value: number, amount: number) {
+    return (value >>> amount) | (value << (32 - amount))
+  }
+  
+  const mathPow = Math.pow
+  const maxWord = mathPow(2, 32)
+  const lengthProperty = 'length'
+  let i, j // Used as a counter across the whole file
+  let result = ''
+
+  const k: number[] = []
+  const hash: number[] = []
+  let primeCounter = 0
+  const isComposite: { [key: number]: number } = {}
+  
+  for (i = 2; primeCounter < 64; i++) {
+    if (!isComposite[i]) {
+      for (j = i * i; j < 311; j += i) {
+        isComposite[j] = 1
+      }
+      hash[primeCounter] = (mathPow(i, 1/2) * maxWord) | 0
+      k[primeCounter++] = (mathPow(i, 1/3) * maxWord) | 0
+    }
+  }
+  
+  let ascii_padded = ascii + '\x80'
+  while (ascii_padded[lengthProperty] % 64 - 56) ascii_padded += '\x00'
+  
+  const words: number[] = []
+  const asciiBitLength = ascii[lengthProperty] * 8
+  
+  for (i = 0; i < ascii_padded[lengthProperty]; i++) {
+    j = ascii_padded.charCodeAt(i)
+    words[i >> 2] |= j << ((3 - i % 4) * 8)
+  }
+  
+  words[words[lengthProperty]] = ((asciiBitLength / maxWord) | 0)
+  words[words[lengthProperty]] = (asciiBitLength | 0)
+
+  for (j = 0; j < words[lengthProperty]; j += 16) {
+    const w = words.slice(j, j + 16)
+    const oldHash = [...hash]
+    hash.splice(8)
+    
+    for (i = 0; i < 64; i++) {
+      const w15 = w[i - 15], w2 = w[i - 2]
+      const a = hash[0], e = hash[4]
+      const temp1 = hash[7]
+        + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25))
+        + ((e & hash[5]) ^ (~e & hash[6]))
+        + k[i]
+        + (w[i] = (i < 16) ? w[i] : (
+            w[i - 16]
+            + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3))
+            + w[i - 7]
+            + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))
+          ) | 0
+        )
+      const temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22))
+        + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]))
+      
+      hash.unshift((temp1 + temp2) | 0)
+      hash[4] = (hash[4] + temp1) | 0
+    }
+    
+    for (i = 0; i < 8; i++) {
+      hash[i] = (hash[i] + oldHash[i]) | 0
+    }
+  }
+  
+  for (i = 0; i < 8; i++) {
+    for (j = 3; j + 1; j--) {
+      const b = (hash[i] >> (j * 8)) & 255
+      result += (b < 16 ? '0' : '') + b.toString(16)
+    }
+  }
+  return result
+}
+
 
 // ──────────────────────────────────────────────────────────────────
 // SETUP WIZARD — shown only on completely fresh installs
@@ -40,12 +140,18 @@ function SetupWizard({ onComplete }: { onComplete: () => void }) {
     setIsSubmitting(true)
     setError("")
     try {
-      // Create the first organization
-      const orgId = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-')
-      await serverAddOrganization(companyName.trim(), orgId)
-      
       // Store password hash
       const hashed = await hashPassword(password)
+      
+      // Try to get existing org or create new
+      const orgId = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      try {
+        await serverAddOrganization(companyName.trim(), orgId, hashed)
+      } catch (e) {
+        // Org might already exist (orphaned install), try setting the hash directly
+        await serverSetMasterPasswordHash(hashed)
+      }
+      
       localStorage.setItem("jeans_master_password_hash", hashed)
       localStorage.setItem("jeans_active_org", orgId)
       localStorage.setItem("jeans_setup_complete", "true")
@@ -179,6 +285,53 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [organizations, setOrganizations] = useState<{id: string, name: string}[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState("")
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(true)
+  const [isSettingPassword, setIsSettingPassword] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [storedHash, setStoredHash] = useState<string | null>(null)
+  
+  // Add Org modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newPass, setNewPass] = useState("")
+  const [newConfirm, setNewConfirm] = useState("")
+  const [isCreating, setIsCreating] = useState(false)
+
+  useEffect(() => {
+    serverListOrganizations().then(async orgs => {
+      setOrganizations(orgs)
+      if (orgs.length > 0) {
+        const lastActive = localStorage.getItem("jeans_active_org")
+        const activeId = (lastActive && orgs.find(o => o.id === lastActive)) ? lastActive : orgs[0].id
+        setSelectedOrgId(activeId)
+        
+        // Check hash for the initial selected org
+        const sHash = await serverGetMasterPasswordHash(activeId)
+        setStoredHash(sHash)
+        setIsSettingPassword(!sHash && !localStorage.getItem(`jeans_hash_${activeId}`))
+      }
+      setIsLoadingOrgs(false)
+    })
+  }, [])
+
+  // Re-check hash when organization changes
+  useEffect(() => {
+    if (!selectedOrgId || isLoadingOrgs) return
+    const checkHash = async () => {
+      const localHash = localStorage.getItem(`jeans_hash_${selectedOrgId}`)
+      if (localHash) {
+        setStoredHash(localHash)
+        setIsSettingPassword(false)
+        return
+      }
+      const sHash = await serverGetMasterPasswordHash(selectedOrgId)
+      setStoredHash(sHash)
+      setIsSettingPassword(!sHash)
+    }
+    checkHash()
+  }, [selectedOrgId])
 
   const handleLogin = async () => {
     if (!password.trim()) { setError("Please enter the master password"); return }
@@ -187,21 +340,69 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     setError("")
 
     const hashed = await hashPassword(password)
-    const storedHash = localStorage.getItem("jeans_master_password_hash")
     
-    if (!storedHash) {
-      setError("No password configured. Please run setup again.")
+    if (isSettingPassword) {
+      if (password !== confirmPassword) { setError("Passwords do not match."); setIsVerifying(false); return }
+      if (password.length < 4) { setError("Password must be at least 4 characters."); setIsVerifying(false); return }
+      
+      await serverSetMasterPasswordHash(hashed, selectedOrgId)
+      localStorage.setItem(`jeans_hash_${selectedOrgId}`, hashed)
+      setStoredHash(hashed)
+      setIsSettingPassword(false)
+      sessionStorage.setItem("jeans_auth", "true")
+      localStorage.setItem("jeans_active_org", selectedOrgId)
+      onLogin()
       setIsVerifying(false)
       return
     }
 
-    if (hashed === storedHash) {
+    let currentHash = storedHash
+    if (!currentHash) {
+      currentHash = localStorage.getItem(`jeans_hash_${selectedOrgId}`)
+    }
+    
+    if (!currentHash) {
+      setError("No password configured. Please set a password.")
+      setIsSettingPassword(true)
+      setIsVerifying(false)
+      return
+    }
+
+    if (hashed === currentHash) {
+      // Sync local hash to server if not already there (for migration to DB)
+      serverGetMasterPasswordHash(selectedOrgId).then(serverHash => {
+        if (!serverHash) serverSetMasterPasswordHash(hashed, selectedOrgId)
+      })
+      
+      localStorage.setItem("jeans_active_org", selectedOrgId)
       sessionStorage.setItem("jeans_auth", "true")
       onLogin()
     } else {
       setError("Incorrect password. Access denied.")
     }
     setIsVerifying(false)
+  }
+
+  const handleCreateNew = async () => {
+    if (!newName.trim()) { setError("Business name is required"); return }
+    if (newPass.length < 4) { setError("Password must be at least 4 characters"); return }
+    if (newPass !== newConfirm) { setError("Passwords do not match"); return }
+    
+    setIsCreating(true)
+    setError("")
+    try {
+      const hashed = await hashPassword(newPass)
+      const newId = newName.toLowerCase().replace(/[^a-z0-9]/g, '-')
+      await serverAddOrganization(newName.trim(), newId, hashed)
+      
+      localStorage.setItem(`jeans_hash_${newId}`, hashed)
+      localStorage.setItem("jeans_active_org", newId)
+      sessionStorage.setItem("jeans_auth", "true")
+      onLogin()
+    } catch (err: any) {
+      setError(err.message || "Failed to create business")
+    }
+    setIsCreating(false)
   }
 
   return (
@@ -224,15 +425,87 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             <p className="text-sm text-muted-foreground mt-1">Enter the master password to access your data.</p>
           </div>
 
+          <div className="flex gap-2 items-end">
+            {!isLoadingOrgs && organizations.length > 0 && (
+              <div className="flex-1">
+                <label className="text-sm font-medium text-foreground mb-1.5 block text-primary font-bold">Select Organization</label>
+                <select
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                  className="w-full rounded-xl h-12 bg-muted border-0 px-3 text-foreground font-semibold focus:ring-2 focus:ring-primary outline-none"
+                >
+                  {organizations.map(org => (
+                    <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            
+            <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-dashed border-primary text-primary hover:bg-primary/5">
+                  <Plus className="w-5 h-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="rounded-2xl">
+                <DialogHeader>
+                  <DialogTitle>Create New Business</DialogTitle>
+                  <DialogDescription>
+                    Add a new business entity to Prasan ERP.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Business Name</label>
+                    <Input 
+                      placeholder="e.g. JS Manufacturing" 
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="rounded-xl bg-muted border-0 h-11"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Master Password</label>
+                    <Input 
+                      type="password"
+                      placeholder="At least 4 characters" 
+                      value={newPass}
+                      onChange={(e) => setNewPass(e.target.value)}
+                      className="rounded-xl bg-muted border-0 h-11"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Confirm Password</label>
+                    <Input 
+                      type="password"
+                      placeholder="Repeat password" 
+                      value={newConfirm}
+                      onChange={(e) => setNewConfirm(e.target.value)}
+                      className="rounded-xl bg-muted border-0 h-11"
+                    />
+                  </div>
+                </div>
+                <DialogFooter className="flex gap-2">
+                  <Button variant="outline" onClick={() => setIsAddModalOpen(false)} className="rounded-xl flex-1">Cancel</Button>
+                  <Button onClick={handleCreateNew} disabled={isCreating} className="rounded-xl flex-[2]">
+                    {isCreating ? "Creating..." : "Create & Launch"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
           <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Master Password</label>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">
+              {isSettingPassword ? "Create Master Password" : "Master Password"}
+            </label>
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter password"
+                placeholder={isSettingPassword ? "Create password" : "Enter password"}
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError("") }}
-                onKeyDown={(e) => { if (e.key === "Enter") handleLogin() }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !isSettingPassword) handleLogin() }}
                 className="rounded-xl h-12 bg-muted border-0 pr-12"
                 autoFocus
               />
@@ -246,6 +519,20 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             </div>
           </div>
 
+          {isSettingPassword && (
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">Confirm Password</label>
+              <Input
+                type={showPassword ? "text" : "password"}
+                placeholder="Repeat password"
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setError("") }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleLogin() }}
+                className="rounded-xl h-12 bg-muted border-0"
+              />
+            </div>
+          )}
+
           {error && (
             <div className="text-sm text-red-400 bg-red-400/10 rounded-xl px-4 py-2.5 font-medium">{error}</div>
           )}
@@ -255,7 +542,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             disabled={isVerifying}
             className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-base font-semibold"
           >
-            {isVerifying ? "Verifying..." : "Unlock Dashboard"}
+            {isVerifying ? "Verifying..." : (isSettingPassword ? "Initialize Business" : "Unlock Dashboard")}
           </Button>
         </div>
       </div>
@@ -281,11 +568,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Check if this is a fresh install (no orgs in DB AND no password set)
+      // Check setup state
       try {
         const fresh = await checkFreshInstall()
-        const hasPassword = localStorage.getItem("jeans_master_password_hash")
-        if (fresh && !hasPassword) {
+        if (fresh) {
           setIsFreshInstall(true)
         }
       } catch (e) {

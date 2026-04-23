@@ -1,13 +1,33 @@
 "use client"
 
 import { useState } from "react"
-import { Building, Shield, Database, LogOut } from "lucide-react"
+import { Building, Shield, Database, LogOut, Trash2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
 import { migrateLegacyData } from "@/app/actions"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 const settingsSections = [
   { id: "business", label: "Business Credentials", icon: Building },
@@ -17,7 +37,7 @@ const settingsSections = [
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState("business")
-  const { activeOrg, activeOrgId, updateOrganization } = useStore()
+  const { activeOrg, activeOrgId, updateOrganization, deleteOrganization, addOrganization } = useStore()
   const { logout } = useAuth()
 
   // Password state
@@ -29,6 +49,11 @@ export function SettingsPage() {
   // Migration state
   const [migrating, setMigrating] = useState(false)
   const [migrateMsg, setMigrateMsg] = useState("")
+
+  // Modal states
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [newOrgName, setNewOrgName] = useState("")
 
   return (
     <div className="p-6">
@@ -137,6 +162,91 @@ export function SettingsPage() {
                       onChange={(e) => updateOrganization(activeOrgId, { state: e.target.value })}
                       className="rounded-xl h-12 bg-muted border-0"
                     />
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-border space-y-4">
+                  <h3 className="text-lg font-semibold text-foreground">Advanced Actions</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="rounded-xl border-primary text-primary hover:bg-primary/5"
+                        >
+                          <Plus className="w-4 h-4 mr-2" /> Add New Business
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="rounded-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Add New Business</DialogTitle>
+                          <DialogDescription>
+                            Enter the name of your new business entity.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                          <Input 
+                            placeholder="Business Name" 
+                            value={newOrgName}
+                            onChange={(e) => setNewOrgName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && newOrgName.trim()) {
+                                addOrganization(newOrgName.trim())
+                                setNewOrgName("")
+                                setIsAddDialogOpen(false)
+                              }
+                            }}
+                            autoFocus
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                          <Button 
+                            onClick={() => {
+                              if (newOrgName.trim()) {
+                                addOrganization(newOrgName.trim())
+                                setNewOrgName("")
+                                setIsAddDialogOpen(false)
+                              }
+                            }}
+                          >
+                            Create Business
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="destructive" 
+                          className="rounded-xl flex-1 md:flex-none"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> Delete This Business
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="rounded-2xl">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the 
+                            <strong> {activeOrg?.name}</strong> business and all of its associated data (accounts, invoices, ledgers).
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => {
+                              deleteOrganization(activeOrgId)
+                              setIsDeleteDialogOpen(false)
+                            }}
+                          >
+                            Delete Business
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </div>
