@@ -37,13 +37,15 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Windows Users (Folder copied from Mac)
 
-If you received this project folder from a Mac user, the `node_modules` folder will not work on Windows and will cause the terminal to close immediately.
+If you received this project folder from a Mac user, the app will handle everything automatically!
 
-**Fix:**
+**Just run `start-windows.bat`**.
+The script will now detect if the folders are from a Mac, delete the incorrect ones, and download the correct Windows version for you automatically.
 
-1. Delete the `node_modules` folder entirely.
-2. Run `start-windows.bat` again. It will automatically download the correct Windows version.
-3. If Node.js was just installed, please restart your laptop first.
+**Requirements:**
+
+1. Make sure [Node.js](https://nodejs.org) is installed.
+2. If the terminal closes instantly, please restart your laptop and try once more.
 
 ## First Launch
 
