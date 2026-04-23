@@ -33,6 +33,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+## Troubleshooting
+
+### Windows Users (Folder copied from Mac)
+
+If you received this project folder from a Mac user, the `node_modules` folder will not work on Windows and will cause the terminal to close immediately.
+
+**Fix:**
+
+1. Delete the `node_modules` folder entirely.
+2. Run `start-windows.bat` again. It will automatically download the correct Windows version.
+3. If Node.js was just installed, please restart your laptop first.
+
 ## First Launch
 
 On first launch, a **Setup Wizard** will guide you through:
