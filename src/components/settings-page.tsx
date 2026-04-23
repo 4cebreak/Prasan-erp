@@ -135,7 +135,7 @@ export function SettingsPage() {
                       Business Address
                     </label>
                     <Input
-                      placeholder="e.g. 123 Denim Street"
+                      placeholder="e.g. 123 Main Street"
                       value={activeOrg?.address || ""}
                       onChange={(e) => updateOrganization(activeOrgId, { address: e.target.value })}
                       className="rounded-xl h-12 bg-muted border-0"
@@ -146,7 +146,7 @@ export function SettingsPage() {
                       City
                     </label>
                     <Input
-                      placeholder="e.g. Mumbai"
+                      placeholder="e.g. City A"
                       value={activeOrg?.city || ""}
                       onChange={(e) => updateOrganization(activeOrgId, { city: e.target.value })}
                       className="rounded-xl h-12 bg-muted border-0"
@@ -157,7 +157,7 @@ export function SettingsPage() {
                       State
                     </label>
                     <Input
-                      placeholder="e.g. Maharashtra"
+                      placeholder="e.g. State A"
                       value={activeOrg?.state || ""}
                       onChange={(e) => updateOrganization(activeOrgId, { state: e.target.value })}
                       className="rounded-xl h-12 bg-muted border-0"
@@ -356,8 +356,8 @@ export function SettingsPage() {
                       // Gather legacy data from localStorage
                       const orgsRaw = localStorage.getItem("jeans_organizations")
                       const orgs = orgsRaw ? JSON.parse(orgsRaw) : [
-                        { id: "parasnath", name: "Parasnath Jeans" },
-                        { id: "jsgarments", name: "JS Garments" }
+                        { id: "abc-company", name: "ABC Company" },
+                        { id: "xyz-agencies", name: "XYZ Agencies" }
                       ]
 
                       const pAccRaw = localStorage.getItem("jeans_parasnath_accounts") || localStorage.getItem("jeans_accounts")

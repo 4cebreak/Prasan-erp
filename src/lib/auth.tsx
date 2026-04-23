@@ -194,7 +194,7 @@ function SetupWizard({ onComplete }: { onComplete: () => void }) {
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Company Name</label>
                 <Input
-                  placeholder="e.g. Parasnath Jeans"
+                  placeholder="e.g. ABC Company"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && companyName.trim()) setStep(2) }}
@@ -458,7 +458,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium">Business Name</label>
                     <Input 
-                      placeholder="e.g. JS Manufacturing" 
+                      placeholder="e.g. My Business" 
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
                       className="rounded-xl bg-muted border-0 h-11"

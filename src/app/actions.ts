@@ -124,16 +124,16 @@ export async function migrateLegacyData(payload: {
       }
     }
 
-    // A. Migrate Parasnath Context
-    if (payload.organizations.find(o => o.id === "parasnath")) {
-      await migrateAccounts("parasnath", payload.parasnathAccounts)
-      await migrateInvoices("parasnath", payload.parasnathInvoices)
+    // A. Migrate ABC Company Context
+    if (payload.organizations.find(o => o.id === "abc-company")) {
+      await migrateAccounts("abc-company", payload.parasnathAccounts)
+      await migrateInvoices("abc-company", payload.parasnathInvoices)
     }
 
-    // B. Migrate JS Context
-    if (payload.organizations.find(o => o.id === "jsgarments")) {
-      await migrateAccounts("jsgarments", payload.jsAccounts)
-      await migrateInvoices("jsgarments", payload.jsInvoices)
+    // B. Migrate XYZ Agencies Context
+    if (payload.organizations.find(o => o.id === "xyz-agencies")) {
+      await migrateAccounts("xyz-agencies", payload.jsAccounts)
+      await migrateInvoices("xyz-agencies", payload.jsInvoices)
     }
 
     return { success: true }

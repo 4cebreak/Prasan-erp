@@ -310,14 +310,14 @@ export function InvoicesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 border border-border/50 p-4 rounded-xl">
                 <div className="col-span-1 md:col-span-2 lg:col-span-3">
                   <label className="text-sm font-medium mb-1.5 block">Customer Name</label>
-                  <Input list="customers" placeholder="e.g. MTEENZ RETAIL PVT LTD" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
+                  <Input list="customers" placeholder="e.g. ABC RETAIL PVT LTD" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
                   <datalist id="customers">
                     {uniqueCustomers.map(c => <option key={c} value={c} />)}
                   </datalist>
                 </div>
                 <div className="col-span-1 md:col-span-2 lg:col-span-3">
                   <label className="text-sm font-medium mb-1.5 block">Agency Name</label>
-                  <Input list="agencies" placeholder="e.g. ABC AGENCIES" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
+                  <Input list="agencies" placeholder="e.g. XYZ AGENCIES" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
                   <datalist id="agencies">
                     {uniqueAgencies.map(a => <option key={a} value={a} />)}
                   </datalist>
@@ -329,11 +329,11 @@ export function InvoicesPage() {
                 </div>
                 <div className="col-span-1 lg:col-span-2">
                   <label className="text-sm font-medium mb-1.5 block">City</label>
-                  <Input placeholder="e.g. Mumbai" value={city} onChange={(e) => setCity(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
+                  <Input placeholder="e.g. City A" value={city} onChange={(e) => setCity(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
                 </div>
                 <div className="col-span-1 lg:col-span-2">
                   <label className="text-sm font-medium mb-1.5 block">Transport</label>
-                  <Input placeholder="e.g. VRL Logistics" value={transport} onChange={(e) => setTransport(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
+                  <Input placeholder="e.g. Standard Transport" value={transport} onChange={(e) => setTransport(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
                 </div>
 
                 <div className="col-span-1 lg:col-span-3">
@@ -342,7 +342,7 @@ export function InvoicesPage() {
                 </div>
                 <div className="col-span-1 lg:col-span-3">
                   <label className="text-sm font-medium mb-1.5 block">Marka</label>
-                  <Input placeholder="e.g. MRK-009" value={marka} onChange={(e) => setMarka(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
+                  <Input placeholder="e.g. MRK-001" value={marka} onChange={(e) => setMarka(e.target.value)} className="rounded-lg h-10 bg-muted border-0" />
                 </div>
               </div>
 

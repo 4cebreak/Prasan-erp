@@ -219,7 +219,7 @@ export function AccountsPage() {
     // Header
     doc.setFontSize(28)
     doc.setTextColor(...primaryColor)
-    doc.text(organization || "Parasnath Jeans", 14, 22)
+    doc.text(organization || "ABC Company", 14, 22)
     
     doc.setFontSize(10)
     doc.setTextColor(100)
@@ -362,11 +362,11 @@ export function AccountsPage() {
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Account Name</label>
-                <Input placeholder="e.g. SUPER JEANS INC" value={newAccountName ?? ''} onChange={(e) => setNewAccountName(e.target.value)} className="rounded-xl h-12 bg-muted border-0" />
+                <Input placeholder="e.g. Customer Name" value={newAccountName ?? ''} onChange={(e) => setNewAccountName(e.target.value)} className="rounded-xl h-12 bg-muted border-0" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Station / Location</label>
-                <Input placeholder="e.g. Mumbai" value={newAccountStation ?? ''} onChange={(e) => setNewAccountStation(e.target.value)} className="rounded-xl h-12 bg-muted border-0" />
+                <Input placeholder="e.g. Location Code" value={newAccountStation ?? ''} onChange={(e) => setNewAccountStation(e.target.value)} className="rounded-xl h-12 bg-muted border-0" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Account Type</label>

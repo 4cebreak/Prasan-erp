@@ -94,15 +94,15 @@ interface StoreState {
 const StoreContext = createContext<StoreState | undefined>(undefined)
 
 const initialAccounts: Account[] = [
-  { id: "1", name: "MTEENZ RETAIL PVT LTD", type: "Direct Agent", station: "Thanjavur", balance: 1146, ledger: [] },
-  { id: "2", name: "ABC AGENCIES", type: "Agency", station: "Mumbai", balance: -5000, ledger: [] }
+  { id: "1", name: "ABC RETAIL PVT LTD", type: "Direct Agent", station: "City A", balance: 1146, ledger: [] },
+  { id: "2", name: "XYZ AGENCIES", type: "Agency", station: "City B", balance: -5000, ledger: [] }
 ]
 
 const initialInvoices: Invoice[] = []
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [organizations, setOrganizations] = useState<OrgConfig[]>([])
-  const [activeOrgId, setActiveOrgId] = useState<string>("parasnath")
+  const [activeOrgId, setActiveOrgId] = useState<string>("abc-company")
   const [accounts, setAccounts] = useState<Account[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
@@ -179,7 +179,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const remaining = organizations.filter(o => o.id !== id)
     setOrganizations(remaining)
     if (activeOrgId === id) {
-      const nextOrg = remaining[0]?.id || "parasnath"
+      const nextOrg = remaining[0]?.id || "abc-company"
       setActiveOrgId(nextOrg)
     }
     await serverDeleteOrganization(id)
@@ -256,7 +256,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   if (!isLoaded) return null // Or a loader
 
-  const activeOrg = organizations.find(o => o.id === activeOrgId) || organizations[0] || { id: "parasnath", name: "Parasnath Jeans" }
+  const activeOrg = organizations.find(o => o.id === activeOrgId) || organizations[0] || { id: "abc-company", name: "ABC Company" }
   const organizationName = activeOrg.name
 
   return (
