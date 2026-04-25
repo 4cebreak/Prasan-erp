@@ -19,7 +19,7 @@ const pageConfig = {
     component: DashboardPage,
   },
   accounts: {
-    title: "Accounts & CRM",
+    title: "Ledgers",
     subtitle: "Manage your Direct Agents and Agency customers",
     component: AccountsPage,
   },

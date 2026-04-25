@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, FileText, Trash2, MoreHorizontal, Filter, Download } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Search, Plus, Users, ArrowUpRight, ArrowDownRight, Edit2, FileText, Trash2, MoreHorizontal, Filter, Download, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -36,10 +37,27 @@ export function AccountsPage() {
   const [newAccountType, setNewAccountType] = useState<"Direct Agent" | "Agency">("Direct Agent")
   const [newAccountStation, setNewAccountStation] = useState("")
 
-  // Ledger state
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
+  // Ledger state (track by ID to stay in sync with global store)
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
+  const selectedAccount = accounts.find(a => a.id === selectedAccountId) || null
   const [ledgerSearch, setLedgerSearch] = useState("")
   
+  // Staged changes for the entire ledger
+  const [stagedLedger, setStagedLedger] = useState<LedgerEntry[]>([])
+  const [originalLedger, setOriginalLedger] = useState<LedgerEntry[]>([])
+
+  // Load staged ledger when account is selected
+  useEffect(() => {
+    if (selectedAccount) {
+      setStagedLedger(selectedAccount.ledger)
+      setOriginalLedger(selectedAccount.ledger)
+    } else {
+      setStagedLedger([])
+      setOriginalLedger([])
+    }
+  }, [selectedAccountId, accounts]) // sync with store changes too
+
+  const hasChanges = JSON.stringify(stagedLedger) !== JSON.stringify(originalLedger)
   // Empty line states for ledger
   const [entryDate, setEntryDate] = useState(() => {
     const today = new Date()
@@ -126,10 +144,12 @@ export function AccountsPage() {
 
   const currentNetAmount = (Number(entryAmount) || 0) - (Number(entryDiscount) || 0) + (Number(entryTaxOrPaid) || 0)
 
-  const handleSaveLedgerEntry = () => {
-    if (!selectedAccount) return
+  const handleSaveLedgerEntry = async () => {
+    if (!selectedAccountId) return
 
-    const entryData: Omit<LedgerEntry, "id"> = {
+    const newId = editingEntryId || "temp-" + Date.now()
+    const entryData: LedgerEntry = {
+      id: newId,
       date: entryDate,
       party: entryParty,
       station: entryStation,
@@ -144,42 +164,50 @@ export function AccountsPage() {
     }
 
     if (editingEntryId) {
-      updateLedgerEntry(selectedAccount.id, editingEntryId, entryData)
+      setStagedLedger(prev => prev.map(e => e.id === editingEntryId ? entryData : e))
     } else {
-      addLedgerEntry(selectedAccount.id, entryData)
+      setStagedLedger(prev => [...prev, entryData])
     }
-
-    // Immediately update local UI state so the dialog displays real-time before React batch
-    setSelectedAccount(prev => {
-      if (!prev) return prev
-      const isUpdating = editingEntryId !== null
-      const diffBalance = isUpdating 
-        ? entryData.netAmount - entryData.payment - (prev.ledger.find(i=>i.id===editingEntryId)?.netAmount || 0) + (prev.ledger.find(i=>i.id===editingEntryId)?.payment || 0)
-        : entryData.netAmount - entryData.payment
-
-      return {
-        ...prev,
-        balance: prev.balance + diffBalance,
-        ledger: isUpdating ? prev.ledger.map(e => e.id===editingEntryId ? {id: e.id, ...entryData} : e) : [...prev.ledger, { id: "temp", ...entryData }]
-      }
-    })
     
     resetEntryForm()
   }
 
   const handleDeleteLedgerEntry = (entryId: string) => {
-    if (!selectedAccount) return
-    deleteLedgerEntry(selectedAccount.id, entryId)
-    setSelectedAccount(prev => {
-      if (!prev) return prev
-      const target = prev.ledger.find(e => e.id === entryId)
-      if (!target) return prev
-      return {
-        ...prev,
-        balance: prev.balance - (target.netAmount - target.payment),
-        ledger: prev.ledger.filter(e => e.id !== entryId)
+    setStagedLedger(prev => prev.filter(e => e.id !== entryId))
+  }
+
+  const handleGlobalSave = async () => {
+    if (!selectedAccountId) return
+    
+    toast.promise(async () => {
+      // 1. Find deleted entries
+      const deletedIds = originalLedger.filter(o => !stagedLedger.find(s => s.id === o.id)).map(o => o.id)
+      for (const id of deletedIds) {
+        await deleteLedgerEntry(selectedAccountId, id)
       }
+
+      // 2. Find new/updated entries
+      for (const entry of stagedLedger) {
+        const original = originalLedger.find(o => o.id === entry.id)
+        if (!original) {
+          // New
+          await addLedgerEntry(selectedAccountId, entry)
+        } else if (JSON.stringify(entry) !== JSON.stringify(original)) {
+          // Updated
+          await updateLedgerEntry(selectedAccountId, entry.id, entry)
+        }
+      }
+      setOriginalLedger(stagedLedger)
+    }, {
+      loading: 'Saving all ledger changes...',
+      success: 'Ledger saved successfully!',
+      error: 'Failed to save ledger.'
     })
+  }
+
+  const handleGlobalCancel = () => {
+    setStagedLedger(originalLedger)
+    toast.info("Changes discarded")
   }
 
   const formatCurrency = (amount: number) => {
@@ -189,17 +217,19 @@ export function AccountsPage() {
   const totalReceivable = accounts.filter((a) => a.balance > 0).reduce((sum, a) => sum + a.balance, 0)
   const totalPayable = accounts.filter((a) => a.balance < 0).reduce((sum, a) => sum + Math.abs(a.balance), 0)
 
-  // Sort and filter ledger
-  const sortedLedger = selectedAccount?.ledger
+  // Sort and filter staged ledger
+  const sortedLedger = stagedLedger
     .slice()
     .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .filter(entry => 
       !ledgerSearch || 
-      entry.party.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
+      entry.party?.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
       entry.date.includes(ledgerSearch) ||
       entry.items?.toLowerCase().includes(ledgerSearch.toLowerCase()) ||
-      entry.station.toLowerCase().includes(ledgerSearch.toLowerCase())
+      entry.station?.toLowerCase().includes(ledgerSearch.toLowerCase())
     ) || []
+
+  const currentStagedBalance = stagedLedger.reduce((sum, e) => sum + (e.netAmount - e.payment), 0)
 
   const totalLedgerAmount = sortedLedger.reduce((sum, e) => sum + (e.amount || 0), 0)
   const totalLedgerDiscount = sortedLedger.reduce((sum, e) => sum + (e.discount || 0), 0)
@@ -208,7 +238,7 @@ export function AccountsPage() {
   const totalLedgerPayment = sortedLedger.reduce((sum, e) => sum + (e.payment || 0), 0)
 
   const generateLedgerPDF = async () => {
-    if (!selectedAccount) return
+    if (!selectedAccount || !selectedAccountId) return
 
     const { jsPDF } = await import("jspdf")
     const autoTable = (await import("jspdf-autotable")).default
@@ -311,7 +341,7 @@ export function AccountsPage() {
               <Users className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Accounts</p>
+              <p className="text-sm text-muted-foreground">Total Ledgers</p>
               <p className="text-2xl font-bold text-foreground">{accounts.length}</p>
             </div>
           </div>
@@ -344,24 +374,24 @@ export function AccountsPage() {
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input placeholder="Search accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-12 h-12 rounded-xl bg-muted border-0 focus-visible:ring-2 focus-visible:ring-primary" />
+          <Input placeholder="Search ledgers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-12 h-12 rounded-xl bg-muted border-0 focus-visible:ring-2 focus-visible:ring-primary" />
         </div>
 
         <Dialog open={isAccountDialogOpen} onOpenChange={setIsAccountDialogOpen}>
           <DialogTrigger asChild>
             <Button className="rounded-xl h-12 px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25" onClick={openNewAccount}>
               <Plus className="w-5 h-5 mr-2" />
-              New Account
+              New Ledger
             </Button>
           </DialogTrigger>
           <DialogContent className="rounded-2xl border-border bg-card w-[95vw] sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle className="text-xl">{editingAccountId ? "Edit Account" : "Create New Account"}</DialogTitle>
+              <DialogTitle className="text-xl">{editingAccountId ? "Edit Ledger" : "Create New Ledger"}</DialogTitle>
               <DialogDescription>Add or update an agency or direct agent in your CRM.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Account Name</label>
+                <label className="text-sm font-medium">Ledger Name</label>
                 <Input placeholder="e.g. Customer Name" value={newAccountName ?? ''} onChange={(e) => setNewAccountName(e.target.value)} className="rounded-xl h-12 bg-muted border-0" />
               </div>
               <div className="space-y-2">
@@ -434,7 +464,7 @@ export function AccountsPage() {
                       <DropdownMenuContent align="end" className="rounded-xl">
                         <Dialog>
                           <DialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSelectedAccount(account); resetEntryForm(); }} className="rounded-lg gap-2 cursor-pointer text-primary">
+                            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setSelectedAccountId(account.id); resetEntryForm(); }} className="rounded-lg gap-2 cursor-pointer text-primary">
                               <FileText className="w-4 h-4" /> View Ledger
                             </DropdownMenuItem>
                           </DialogTrigger>
@@ -479,7 +509,9 @@ export function AccountsPage() {
                                 <tbody>
                                   {sortedLedger.map((entry, idx) => (
                                     <tr key={idx} className="border-b border-border/50 hover:bg-muted/10 transition-colors">
-                                      <td className="p-3 font-mono text-xs">{entry.date}</td>
+                                      <td className="p-3 font-mono text-xs">
+                                        {new Date(entry.date).toLocaleDateString('en-GB')}
+                                      </td>
                                       <td className="p-3 flex flex-col">
                                         <span>{entry.party}</span>
                                         {entry.type === "payment" && entry.paymentMode && (
@@ -495,11 +527,11 @@ export function AccountsPage() {
                                       <td className="p-3 text-right text-accent font-medium">{entry.payment ? formatCurrency(entry.payment) : "-"}</td>
                                       <td className="p-3 text-center">
                                         <div className="flex items-center justify-center gap-1">
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEditLedgerEntry(entry)}>
-                                            <Edit2 className="w-3.5 h-3.5" />
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg" onClick={() => openEditLedgerEntry(entry)}>
+                                            <Edit2 className="w-4 h-4" />
                                           </Button>
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteLedgerEntry(entry.id)}>
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => handleDeleteLedgerEntry(entry.id)}>
+                                            <Trash2 className="w-4 h-4" />
                                           </Button>
                                         </div>
                                       </td>
@@ -552,12 +584,26 @@ export function AccountsPage() {
                                     <td className="p-2"><Input placeholder="" value={entryItems ?? ''} onChange={(e) => setEntryItems(e.target.value)} className="h-9 w-full min-w-24 text-xs" /></td>
                                     <td className="p-2"><Input type="number" placeholder="₹" value={entryPayment ?? ''} onChange={(e) => setEntryPayment(e.target.value === '' ? '' : Number(e.target.value))} className="h-9 w-full min-w-24 text-right text-xs" /></td>
                                     <td className="p-2 text-center">
-                                      <div className="flex flex-col gap-1 items-center">
-                                        <Button size="sm" onClick={handleSaveLedgerEntry} className="h-8 text-xs font-semibold px-2 bg-primary">
-                                          {editingEntryId ? "Save" : "Add"}
+                                      <div className="flex items-center gap-2 justify-center">
+                                        <Button 
+                                          size="sm" 
+                                          onClick={handleSaveLedgerEntry} 
+                                          className={cn(
+                                            "h-10 px-6 font-bold rounded-xl shadow-lg transition-all",
+                                            editingEntryId ? "bg-accent hover:bg-accent/90" : "bg-primary hover:bg-primary/90"
+                                          )}
+                                        >
+                                          {editingEntryId ? "UPDATE" : "ADD"}
                                         </Button>
                                         {editingEntryId && (
-                                          <Button variant="ghost" size="sm" onClick={resetEntryForm} className="h-6 text-[10px]">Cancel</Button>
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={resetEntryForm} 
+                                            className="h-10 px-4 font-semibold border-muted text-muted-foreground hover:bg-muted/10 rounded-xl"
+                                          >
+                                            CANCEL
+                                          </Button>
                                         )}
                                       </div>
                                     </td>
@@ -566,17 +612,30 @@ export function AccountsPage() {
                               </table>
                             </div>
 
-                            <div className="p-4 md:p-6 border-t border-border bg-card">
-                              <div className="flex justify-end items-center gap-6">
-                                <span className="text-xl font-medium text-foreground tracking-tight">NET BALANCE</span>
-                                <span className={cn(
-                                  "text-3xl md:text-4xl font-bold font-mono tracking-tight",
-                                  (selectedAccount?.balance || 0) > 0 ? "text-accent" : (selectedAccount?.balance || 0) < 0 ? "text-destructive" : "text-foreground"
-                                )}>
-                                  ₹ {Math.abs(selectedAccount?.balance || 0).toLocaleString('en-IN')}
-                                </span>
+                             <div className="p-4 md:p-6 border-t border-border bg-card flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-3">
+                                  {hasChanges && (
+                                    <>
+                                      <Button onClick={handleGlobalSave} className="bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl h-11 px-6 shadow-lg shadow-green-600/20">
+                                        <CheckCircle2 className="w-4 h-4 mr-2" /> SAVE ALL CHANGES
+                                      </Button>
+                                      <Button variant="outline" onClick={handleGlobalCancel} className="rounded-xl h-11 px-6 border-muted text-muted-foreground hover:bg-muted/10">
+                                        CANCEL ALL
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-6">
+                                  <span className="text-xl font-medium text-foreground tracking-tight">NET BALANCE</span>
+                                  <span className={cn(
+                                    "text-3xl md:text-4xl font-bold font-mono tracking-tight",
+                                    currentStagedBalance > 0 ? "text-accent" : currentStagedBalance < 0 ? "text-destructive" : "text-foreground"
+                                  )}>
+                                    ₹ {Math.abs(currentStagedBalance).toLocaleString('en-IN')}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
                           </DialogContent>
                         </Dialog>
                         
@@ -584,7 +643,7 @@ export function AccountsPage() {
                           <Edit2 className="w-4 h-4" /> Edit Details
                         </DropdownMenuItem>
                         <DropdownMenuItem className="rounded-lg gap-2 text-destructive" onClick={() => deleteAccount(account.id)}>
-                          <Trash2 className="w-4 h-4" /> Delete Account
+                          <Trash2 className="w-4 h-4" /> Delete Ledger
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

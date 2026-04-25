@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react"
 import { 
   fetchStoreContext, serverAddAccount, serverUpdateAccount, serverDeleteAccount, 
-  serverAddLedgerEntry, serverAddInvoice, serverUpdateInvoice, serverDeleteInvoice, 
+  serverAddLedgerEntry, serverUpdateLedgerEntry, serverDeleteLedgerEntry, serverAddInvoice, serverUpdateInvoice, serverDeleteInvoice, 
   serverAddOrganization, serverUpdateOrganization, serverDeleteOrganization 
 } from "@/app/actions"
 
@@ -203,19 +203,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   const addLedgerEntry = async (accountId: string, entry: Omit<LedgerEntry, "id">) => {
-    const newEntryId = Date.now().toString()
+    // 1. Optimistic update with temp ID
+    const tempId = "temp-" + Date.now()
     setAccounts(prev => prev.map((acc) => {
       if (acc.id === accountId) {
-        const newEntry = { ...entry, id: newEntryId }
+        const newEntry = { ...entry, id: tempId }
         const newBalance = acc.balance + (entry.amount - entry.discount + entry.taxOrPaid - entry.payment)
         return { ...acc, balance: newBalance, ledger: [...acc.ledger, newEntry] }
       }
       return acc
     }))
-    await serverAddLedgerEntry(accountId, { ...entry, id: newEntryId })
+    
+    // 2. Server call
+    try {
+      const savedEntry = await serverAddLedgerEntry(accountId, entry)
+      // 3. Replace temp ID with real ID from server
+      setAccounts(prev => prev.map((acc) => {
+        if (acc.id === accountId) {
+          return {
+            ...acc,
+            ledger: acc.ledger.map(e => e.id === tempId ? { ...savedEntry, date: typeof savedEntry.date === 'string' ? savedEntry.date : savedEntry.date.toISOString() } : e)
+          }
+        }
+        return acc
+      }))
+    } catch (err) {
+      console.error("Failed to save ledger entry", err)
+      // Rollback could be added here if needed
+    }
   }
 
   const updateLedgerEntry = async (accountId: string, entryId: string, entry: Partial<LedgerEntry>) => {
+    // 1. Optimistic update
     setAccounts(prev => prev.map((acc) => {
       if (acc.id === accountId) {
         const updatedLedger = acc.ledger.map(e => (e.id === entryId ? { ...e, ...entry } : e))
@@ -224,10 +243,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       return acc
     }))
-    // Note: Update not yet fully wired to backend but optimistic logic serves.
+    
+    // 2. Server sync
+    if (!entryId.startsWith("temp-")) {
+      await serverUpdateLedgerEntry(entryId, entry)
+    }
   }
 
   const deleteLedgerEntry = async (accountId: string, entryId: string) => {
+    // 1. Optimistic update
     setAccounts(prev => prev.map((acc) => {
       if (acc.id === accountId) {
         const updatedLedger = acc.ledger.filter(e => e.id !== entryId)
@@ -236,6 +260,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       return acc
     }))
+    
+    // 2. Server sync
+    if (!entryId.startsWith("temp-")) {
+      await serverDeleteLedgerEntry(entryId)
+    }
   }
 
   const addInvoice = async (inv: Omit<Invoice, "id" | "status">) => {

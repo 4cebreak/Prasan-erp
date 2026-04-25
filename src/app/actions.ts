@@ -213,23 +213,59 @@ export async function serverDeleteAccount(id: string) {
   await prisma.account.delete({ where: { id } })
 }
 
+export async function serverUpdateLedgerEntry(id: string, updates: any) {
+  const { date, ...rest } = updates
+  const data: any = { ...rest }
+  if (date) data.date = new Date(date)
+  
+  const entry = await prisma.ledgerEntry.update({
+    where: { id },
+    data
+  })
+  
+  // Re-calculate the account balance to ensure it stays accurate
+  await syncAccountBalance(entry.accountId)
+  return entry
+}
+
+export async function serverDeleteLedgerEntry(id: string) {
+  const entry = await prisma.ledgerEntry.findUnique({ where: { id } })
+  if (!entry) return
+  
+  const accountId = entry.accountId
+  await prisma.ledgerEntry.delete({ where: { id } })
+  
+  await syncAccountBalance(accountId)
+}
+
+// Internal helper to keep balance in sync
+async function syncAccountBalance(accountId: string) {
+  const entries = await prisma.ledgerEntry.findMany({
+    where: { accountId }
+  })
+  
+  const newBalance = entries.reduce((sum, e) => {
+    return sum + (e.amount - e.discount + e.taxOrPaid - e.payment)
+  }, 0)
+  
+  await prisma.account.update({
+    where: { id: accountId },
+    data: { balance: newBalance }
+  })
+}
+
 export async function serverAddLedgerEntry(accountId: string, entryPayload: any) {
-  await prisma.ledgerEntry.create({
+  const { id, date, ...rest } = entryPayload
+  const entry = await prisma.ledgerEntry.create({
     data: {
-      ...entryPayload,
+      ...rest,
+      date: new Date(date),
       accountId
     }
   })
   
-  // auto-calculate net balance shift
-  const acc = await prisma.account.findUnique({ where: { id: accountId } })
-  if (acc) {
-    const shift = (entryPayload.amount - entryPayload.discount + entryPayload.taxOrPaid - entryPayload.payment)
-    await prisma.account.update({
-      where: { id: accountId },
-      data: { balance: acc.balance + shift }
-    })
-  }
+  await syncAccountBalance(accountId)
+  return entry
 }
 
 export async function serverListOrganizations() {
